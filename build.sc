@@ -1,9 +1,9 @@
 // originally based on https://github.com/alexarchambault/mill-native-image/blob/dca83cef17f1a90360b62610e1dcce57271ef37d/build.sc
 
-import $ivy.`io.chris-kipp::mill-ci-release::0.1.6`
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.1`
 
-import io.kipp.mill.ci.release.{CiReleaseModule, SonatypeHost}
+import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 import mill.scalalib.api.Util.scalaNativeBinaryVersion
 
@@ -15,7 +15,7 @@ def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersio
 def millVersion(binaryVersion: String) =
   millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
-trait MillCsPublishModule extends CiReleaseModule {
+trait MillCsPublishModule extends PublishModule {
   def pomSettings = PomSettings(
     description = artifactName(),
     organization = "io.get-coursier.mill",
@@ -26,7 +26,29 @@ trait MillCsPublishModule extends CiReleaseModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     )
   )
-  override def sonatypeHost = Some(SonatypeHost.s01)
+
+  def publishVersion = T {
+    val state = VcsVersion.vcsState()
+    if (state.commitsSinceLastTag > 0) {
+      val versionOrEmpty = state.lastTag
+        .filter(_ != "latest")
+        .map(_.stripPrefix("v"))
+        .flatMap { tag =>
+          val idx = tag.lastIndexOf(".")
+          if (idx >= 0)
+            Some(tag.take(idx + 1) + (tag.drop(idx + 1).takeWhile(_.isDigit).toInt + 1).toString + "-SNAPSHOT")
+          else None
+        }
+        .getOrElse("0.0.1-SNAPSHOT")
+      Some(versionOrEmpty)
+        .filter(_.nonEmpty)
+        .getOrElse(state.format())
+    } else
+      state
+        .lastTag
+        .getOrElse(state.format())
+        .stripPrefix("v")
+  }
 }
 
 object Scala {
@@ -51,3 +73,54 @@ class PluginModule(millBinaryVersion: String)
     def testFramework = "munit.Framework"
   }
 }
+
+def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
+  T.command {
+    import scala.concurrent.duration._
+
+    val data = T.sequence(tasks.value)()
+    val log  = T.ctx().log
+
+    val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
+    val pgpPassword = sys.env("PGP_PASSPHRASE")
+    val timeout     = 10.minutes
+
+    val artifacts = data.map {
+      case PublishModule.PublishData(a, s) =>
+        (s.map { case (p, f) => (p.path, f) }, a)
+    }
+
+    val isRelease = {
+      val versions = artifacts.map(_._2.version).toSet
+      val set      = versions.map(!_.endsWith("-SNAPSHOT"))
+      assert(
+        set.size == 1,
+        s"Found both snapshot and non-snapshot versions: ${versions.toVector.sorted.mkString(", ")}",
+      )
+      set.head
+    }
+    val publisher = new scalalib.publish.SonatypePublisher(
+      uri = "https://oss.sonatype.org/service/local",
+      snapshotUri = "https://oss.sonatype.org/content/repositories/snapshots",
+      credentials = credentials,
+      signed = true,
+      gpgArgs = Seq(
+        "--detach-sign",
+        "--batch=true",
+        "--yes",
+        "--pinentry-mode",
+        "loopback",
+        "--passphrase",
+        pgpPassword,
+        "--armor",
+        "--use-agent",
+      ),
+      readTimeout = timeout.toMillis.toInt,
+      connectTimeout = timeout.toMillis.toInt,
+      log = log,
+      awaitTimeout = timeout.toMillis.toInt,
+      stagingRelease = isRelease,
+    )
+
+    publisher.publishAll(isRelease, artifacts: _*)
+  }
