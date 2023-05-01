@@ -25,7 +25,6 @@ jobs:
       run: ./mill __.test
 
   publish:
-    needs: test
     if: github.event_name == 'push' && github.repository == 'coursier/mill-cs'
     runs-on: ubuntu-latest
     steps:
