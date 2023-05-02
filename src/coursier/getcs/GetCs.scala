@@ -1,58 +1,54 @@
-package coursier.mill
+//> using scala "2.12.17", "2.13.10"
+//> using lib "io.get-coursier::coursier:2.1.2"
+
+package coursier.getcs
 
 import coursier.core.Version
-import mill._
 
 import java.io.File
 import java.util.Locale
 
 import scala.util.Properties
 
-trait MillCs extends Module {
-
-  def csVersion: String    = MillCs.defaultVersion
-  def csArmVersion: String = MillCs.defaultArmVersion
+object GetCs {
 
   /** Provides the command to run "cs". Can be either a path, or a command name.
     */
-  def cs: T[String] = T.persistent {
+  def cs(csVersion: String = defaultVersion, csArmVersion: String = null): String = {
 
-    val arch       = sys.props.getOrElse("os.arch", "").toLowerCase(Locale.ROOT)
-    val ext        = if (Properties.isWin) ".exe" else ""
-    val csVersion0 = if (arch == "aarch64" && Properties.isMac) csArmVersion else csVersion
-    val dest       = T.dest / s"cs-$csVersion0$ext"
+    val arch = sys.props.getOrElse("os.arch", "").toLowerCase(Locale.ROOT)
+    val ext  = if (Properties.isWin) ".exe" else ""
+    val csVersion0 =
+      if (arch == "aarch64" && Properties.isMac && csArmVersion != null) csArmVersion else csVersion
 
-    def downloadOpt(): Option[String] =
-      MillCs.url(arch, csVersion0, Properties.isWin, Properties.isMac, Properties.isLinux).map {
-        url =>
+    val downloadOpt: Option[String] =
+      url(arch, csVersion0, Properties.isWin, Properties.isMac, Properties.isLinux).map {
+        url0 =>
           val cache        = coursier.cache.FileCache()
           val archiveCache = coursier.cache.ArchiveCache().withCache(cache)
-          val task         = cache.logger.using(archiveCache.get(coursier.util.Artifact(url)))
+          val task         = cache.logger.using(archiveCache.get(coursier.util.Artifact(url0)))
           val maybeFile =
             try task.unsafeRun()(cache.ec)
             catch {
               case t: Throwable =>
-                throw new Exception(s"Error getting and extracting $url", t)
+                throw new Exception(s"Error getting and extracting $url0", t)
             }
-          val f = maybeFile.fold(ex => throw new Exception(ex), os.Path(_, os.pwd))
+          val f = maybeFile.fold(ex => throw new Exception(ex), identity)
           val exec =
-            if (Properties.isWin && os.isDir(f) && f.last.endsWith(".zip"))
-              os.list(f).find(_.last.endsWith(".exe")).getOrElse(
+            if (Properties.isWin && f.isDirectory() && f.getName.endsWith(".zip"))
+              f.listFiles.find(_.getName.endsWith(".exe")).getOrElse(
                 sys.error(s"No .exe found under $f")
               )
             else
               f
 
           if (!Properties.isWin)
-            exec.toIO.setExecutable(true)
+            exec.setExecutable(true)
 
           exec.toString
       }
 
-    if (os.isFile(dest))
-      dest.toString
-    else
-      downloadOpt().getOrElse(fromPath("cs")): String
+    downloadOpt.getOrElse(fromPath("cs"))
   }
 
   def fromPath(name: String): String =
@@ -85,10 +81,6 @@ trait MillCs extends Module {
     else
       name
 
-}
-
-object MillCs {
-
   def defaultVersion: String    = "2.1.2"
   def defaultArmVersion: String = defaultVersion
 
@@ -117,12 +109,12 @@ object MillCs {
       case "aarch64" =>
         if (isLinux) {
           val useVirtusLabRepo = Version(version).compare(Version("2.1.0-RC5")) >= 0
-          val url =
+          val url0 =
             if (useVirtusLabRepo)
               s"https://github.com/VirtusLab/coursier-m1/releases/download/v$version/cs-aarch64-pc-linux.gz"
             else
               s"https://github.com/coursier/coursier/releases/download/v$version/cs-aarch64-pc-linux.gz"
-          Some(url)
+          Some(url0)
         }
         else if (isMac)
           Some(
