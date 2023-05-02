@@ -1,6 +1,6 @@
 # get-cs
 
-A library to fetch a [coursier](https://github.com/coursier/coursier) from Scala code
+A library to fetch a [coursier](https://github.com/coursier/coursier) launcher from Scala code
 
 This library fetches a native coursier launcher, depending on your OS (Linux / macOS /
 Windows) and architecture (x86-64 / ARM64), and falls back to any launcher
