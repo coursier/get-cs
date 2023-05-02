@@ -1,4 +1,4 @@
-out/
+.scala-build/
 .bsp/
 .metals/
 .vscode/

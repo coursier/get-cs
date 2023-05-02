@@ -1,6 +1,8 @@
-package coursier.mill
+//> using lib "org.scalameta::munit:0.7.29"
 
-object MillCsTests {
+package coursier.getcs
+
+object GetCsTests {
 
   case class Entry(
     arch: String,
@@ -9,15 +11,15 @@ object MillCsTests {
     isLinux: Boolean
   ) {
     def version =
-      if (arch == "aarch64") MillCs.defaultArmVersion
-      else MillCs.defaultVersion
+      if (arch == "aarch64") GetCs.defaultArmVersion
+      else GetCs.defaultVersion
     def os =
       if (isWin) "Windows"
       else if (isMac) "macOS"
       else if (isLinux) "Linux"
       else "other"
     def name = s"$arch $os"
-    def url  = MillCs.url(arch, version, isWin, isMac, isLinux)
+    def url  = GetCs.url(arch, version, isWin, isMac, isLinux)
   }
 
   def entries: Seq[Entry] =
@@ -33,9 +35,9 @@ object MillCsTests {
 
 }
 
-class MillCsTests extends munit.FunSuite {
+class GetCsTests extends munit.FunSuite {
 
-  import MillCsTests._
+  import GetCsTests._
 
   for (entry <- entries)
     test(s"${entry.name} check") {
