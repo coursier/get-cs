@@ -40,7 +40,19 @@ class GetCsTests extends munit.FunSuite {
   import GetCsTests._
 
   for (entry <- entries)
-    test(s"${entry.name} check") {
+    test(s"${entry.name} cs check") {
+      val url = entry.url.getOrElse {
+        sys.error("no URL")
+      }
+      val cache = coursier.cache.FileCache()
+      cache.file(coursier.util.Artifact(url)).run.unsafeRun()(cache.ec) match {
+        case Left(err) => throw new Exception(err)
+        case Right(_)  =>
+      }
+    }
+
+  for (entry <- entries)
+    test(s"${entry.name} scala-cli check") {
       val url = entry.url.getOrElse {
         sys.error("no URL")
       }
