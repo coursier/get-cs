@@ -25,6 +25,13 @@ object GetCs {
       .getOrElse(fromPath("cs"))
   }
 
+  /** Provides the command to run "scala-cli". Can be either a path, or a command name.
+    */
+  def scalaCli(version: String = defaultScalaCliVersion): String =
+    scalaCliUrl(arch, version, Properties.isWin, Properties.isMac, Properties.isLinux)
+      .map(download)
+      .getOrElse(fromPath("scala-cli"))
+
   private def arch: String =
     sys.props.getOrElse("os.arch", "").toLowerCase(Locale.ROOT)
 
@@ -86,6 +93,8 @@ object GetCs {
   def defaultVersion: String    = "2.1.2"
   def defaultArmVersion: String = defaultVersion
 
+  def defaultScalaCliVersion = "1.0.0-RC1"
+
   def url(
     arch: String,
     version: String,
@@ -121,6 +130,42 @@ object GetCs {
         else if (isMac)
           Some(
             s"https://github.com/VirtusLab/coursier-m1/releases/download/v$version/cs-aarch64-apple-darwin.gz"
+          )
+        else None
+      case _ =>
+        None
+    }
+
+  def scalaCliUrl(
+    arch: String,
+    version: String,
+    isWin: Boolean,
+    isMac: Boolean,
+    isLinux: Boolean
+  ): Option[String] =
+    arch match {
+      case "x86_64" | "amd64" =>
+        if (isWin)
+          Some(
+            s"https://github.com/VirtusLab/scala-cli/releases/download/v$version/scala-cli-x86_64-pc-win32.zip"
+          )
+        else if (isMac)
+          Some(
+            s"https://github.com/VirtusLab/scala-cli/releases/download/v$version/scala-cli-x86_64-apple-darwin.gz"
+          )
+        else if (isLinux)
+          Some(
+            s"https://github.com/VirtusLab/scala-cli/releases/download/v$version/scala-cli-x86_64-pc-linux.gz"
+          )
+        else None
+      case "aarch64" =>
+        if (isLinux)
+          Some(
+            s"https://github.com/VirtusLab/scala-cli/releases/download/v$version/scala-cli-aarch64-pc-linux.gz"
+          )
+        else if (isMac)
+          Some(
+            s"https://github.com/VirtusLab/scala-cli/releases/download/v$version/scala-cli-aarch64-apple-darwin.gz"
           )
         else None
       case _ =>
